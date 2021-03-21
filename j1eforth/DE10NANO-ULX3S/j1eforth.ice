@@ -177,20 +177,20 @@ $$end
     // J1+ CPU
     // instruction being executed, plus decoding, including 5bit deltas for dsp and rsp expanded from 2bit encoded in the alu instruction
     uint16  instruction = uninitialized;
-    uint16  immediate ::= ( literal(instruction).literalvalue );
-    uint1   is_alu ::= ( instruction(instruction).is_litcallbranchalu == 3b011 );
-    uint1   is_call ::= ( instruction(instruction).is_litcallbranchalu == 3b010 );
-    uint1   is_lit ::= literal(instruction).is_literal;
-    uint1   is_n2memt ::= is_alu && aluop(instruction).is_n2memt;
-    uint2   is_callbranchalu ::= callbranch(instruction).is_callbranchalu;
-    uint1   dstackWrite ::= ( is_lit | (is_alu & aluop(instruction).is_t2n) );
-    uint1   rstackWrite ::= ( is_call | (is_alu & aluop(instruction).is_t2r) );
-    uint8   ddelta ::= { {7{aluop(instruction).ddelta1}}, aluop(instruction).ddelta0 };
-    uint8   rdelta ::= { {7{aluop(instruction).rdelta1}}, aluop(instruction).rdelta0 };
+    uint16  immediate := ( literal(instruction).literalvalue );
+    uint1   is_alu := ( instruction(instruction).is_litcallbranchalu == 3b011 );
+    uint1   is_call := ( instruction(instruction).is_litcallbranchalu == 3b010 );
+    uint1   is_lit := literal(instruction).is_literal;
+    uint1   is_n2memt := is_alu && aluop(instruction).is_n2memt;
+    uint2   is_callbranchalu := callbranch(instruction).is_callbranchalu;
+    uint1   dstackWrite := ( is_lit | (is_alu & aluop(instruction).is_t2n) );
+    uint1   rstackWrite := ( is_call | (is_alu & aluop(instruction).is_t2r) );
+    uint8   ddelta := { {7{aluop(instruction).ddelta1}}, aluop(instruction).ddelta0 };
+    uint8   rdelta := { {7{aluop(instruction).rdelta1}}, aluop(instruction).rdelta0 };
 
     // program counter
     uint13  pc = 0;
-    uint13  pcPlusOne ::= pc + 1;
+    uint13  pcPlusOne := pc + 1;
     uint13  newPC = uninitialized;
     uint13  callBranchAddress := callbranch(instruction).address;
 
@@ -418,7 +418,7 @@ algorithm alu(
     input   uint16  IOmemoryRead,
     input   uint16  RAMmemoryRead,
 
-    output uint16  newStackTop
+    output! uint16  newStackTop
 ) <autorun> {
     j1eforthALU ALU(
         instruction <: instruction,
@@ -463,7 +463,7 @@ algorithm j1eforthALU(
     input   uint16  IOmemoryRead,
     input   uint16  RAMmemoryRead,
 
-    output uint16  newStackTop
+    output! uint16  newStackTop
 ) <autorun> {
     while(1) {
         //if( start ) {
@@ -498,7 +498,7 @@ algorithm j1eforthplusALU(
     input   uint16  stackTop,
     input   uint16  stackNext,
 
-    output  uint16  newStackTop
+    output!  uint16  newStackTop
 ) <autorun> {
     while(1) {
         //if( start ) {
@@ -533,10 +533,10 @@ algorithm j1eforthcallbranch(
     input   uint8   dsp,
     input   uint8   rsp,
 
-    output uint16  newStackTop,
-    output uint13  newPC,
-    output uint8   newDSP,
-    output uint8   newRSP,
+    output! uint16  newStackTop,
+    output! uint13  newPC,
+    output! uint8   newDSP,
+    output! uint8   newRSP,
 ) <autorun> {
     while(1) {
         // ONLY TRIGGER IF CALL BRANCH 0BRANCH
