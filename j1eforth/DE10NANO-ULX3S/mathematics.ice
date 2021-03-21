@@ -243,7 +243,7 @@ algorithm doubleaddsub1input(
     absolute := ( operand1[31,1] ) ? -operand1 : operand1;
 
     zeroequal := {16{(operand1 == 0)}};
-    zeroless := {16{(operand1 < 0)}};
+    zeroless := {16{(__signed(operand1) < 0)}};
 
     while(1) {}
 }

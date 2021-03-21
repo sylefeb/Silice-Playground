@@ -37,7 +37,9 @@ bitfield aluop {
 algorithm main(
     // LEDS (8 of)
     output  uint8   leds,
+$$if not VERILATOR then
     input   uint$NUM_BTNS$ btns,
+$$end
 
 $$if ULX3S then
     output  uint4   gpdi_dp,
@@ -54,7 +56,17 @@ $$if DE10NANO then
     output! uint1   video_hs,
     output! uint1   video_vs,
 $$end
+$$if VERILATOR then
+    // VGA
+    output! uint6   video_r,
+    output! uint6   video_g,
+    output! uint6   video_b,
+    output! uint1   video_hs,
+    output! uint1   video_vs,
+    output! uint1   video_clock,
+$$end
 
+$$if not VERILATOR then
     // UART
     output! uint1   uart_tx,
     input   uint1   uart_rx,
@@ -71,19 +83,31 @@ $$end
     // AUDIO
     output! uint4   audio_l,
     output! uint4   audio_r
-
+$$end
 )
 $$if ULX3S then
 <@clock_j1cpu>
 $$end
 {
+$$if VERILATOR then
+    uint$NUM_BTNS$ btns(0);
+    uint1   uart_tx(0);
+    uint1   uart_rx(0);
+    uint1   usb_fpga_bd_dp(0);
+    uint1   usb_fpga_bd_dn(0);
+    uint1   usb_fpga_dp(0);
+    uint1   us2_bd_dp(0);
+    uint1   us2_bd_dn(0);
+    uint1 clock_50mhz = uninitialized;
+$$end
+
     // VGA/HDMI Display
     uint1   video_reset = uninitialized;
-    uint1   video_clock = uninitialized;
     uint1   pll_lock = uninitialized;
 
     // Generate the 100MHz SDRAM and 25MHz VIDEO clocks
 $$if DE10NANO then
+    uint1   video_clock = uninitialized;
     uint1 sdram_clock = uninitialized;
     uint1 clock_50mhz = uninitialized;
 
@@ -153,20 +177,20 @@ $$end
     // J1+ CPU
     // instruction being executed, plus decoding, including 5bit deltas for dsp and rsp expanded from 2bit encoded in the alu instruction
     uint16  instruction = uninitialized;
-    uint16  immediate := ( literal(instruction).literalvalue );
-    uint1   is_alu := ( instruction(instruction).is_litcallbranchalu == 3b011 );
-    uint1   is_call := ( instruction(instruction).is_litcallbranchalu == 3b010 );
-    uint1   is_lit := literal(instruction).is_literal;
-    uint1   is_n2memt := is_alu && aluop(instruction).is_n2memt;
-    uint2   is_callbranchalu := callbranch(instruction).is_callbranchalu;
-    uint1   dstackWrite := ( is_lit | (is_alu & aluop(instruction).is_t2n) );
-    uint1   rstackWrite := ( is_call | (is_alu & aluop(instruction).is_t2r) );
-    uint8   ddelta := { {7{aluop(instruction).ddelta1}}, aluop(instruction).ddelta0 };
-    uint8   rdelta := { {7{aluop(instruction).rdelta1}}, aluop(instruction).rdelta0 };
+    uint16  immediate ::= ( literal(instruction).literalvalue );
+    uint1   is_alu ::= ( instruction(instruction).is_litcallbranchalu == 3b011 );
+    uint1   is_call ::= ( instruction(instruction).is_litcallbranchalu == 3b010 );
+    uint1   is_lit ::= literal(instruction).is_literal;
+    uint1   is_n2memt ::= is_alu && aluop(instruction).is_n2memt;
+    uint2   is_callbranchalu ::= callbranch(instruction).is_callbranchalu;
+    uint1   dstackWrite ::= ( is_lit | (is_alu & aluop(instruction).is_t2n) );
+    uint1   rstackWrite ::= ( is_call | (is_alu & aluop(instruction).is_t2r) );
+    uint8   ddelta ::= { {7{aluop(instruction).ddelta1}}, aluop(instruction).ddelta0 };
+    uint8   rdelta ::= { {7{aluop(instruction).rdelta1}}, aluop(instruction).rdelta0 };
 
     // program counter
     uint13  pc = 0;
-    uint13  pcPlusOne := pc + 1;
+    uint13  pcPlusOne ::= pc + 1;
     uint13  newPC = uninitialized;
     uint13  callBranchAddress := callbranch(instruction).address;
 
@@ -240,14 +264,15 @@ $$end
         uart_tx :> uart_tx,
         uart_rx <: uart_rx,
 
+    $$if ULX3S then
         // USB PS/2 KEYBOARD
         us2_bd_dp <: us2_bd_dp,
         us2_bd_dn <: us2_bd_dn,
-
         // AUDIO
         audio_l :> audio_l,
         audio_r :> audio_r,
-
+    $$end
+    
         // VGA/HDMI
         video_r :> video_r,
         video_g :> video_g,
@@ -288,6 +313,9 @@ $$end
         // 50MHz clock specifically named for de10nano
         clock_50mhz := clock;
     $$end
+    $$if VERILATOR then
+        clock_50mhz := clock;
+    $$end
 
     // ALU START FLAGS
     //ALU.start := 0;
@@ -299,6 +327,9 @@ $$end
 
     // EXECUTE J1 CPU
     while( 1 ) {
+
+__write(".");
+
         // FETCH INSTRUCTION
         ram.addr0 = pc;
         ++:
@@ -345,7 +376,7 @@ $$end
                     newPC = CALLBRANCH.newPC;
                     newDSP = CALLBRANCH.newDSP;
                     newRSP = CALLBRANCH.newRSP;
-                    rstackWData = {pcPlusOne[0,15],1b0};
+                    rstackWData = {pcPlusOne[0,13],1b0};
                 }
             }
         } // J1 CPU Instruction Execute
@@ -387,7 +418,7 @@ algorithm alu(
     input   uint16  IOmemoryRead,
     input   uint16  RAMmemoryRead,
 
-    output! uint16  newStackTop
+    output uint16  newStackTop
 ) <autorun> {
     j1eforthALU ALU(
         instruction <: instruction,
@@ -432,7 +463,7 @@ algorithm j1eforthALU(
     input   uint16  IOmemoryRead,
     input   uint16  RAMmemoryRead,
 
-    output! uint16  newStackTop
+    output uint16  newStackTop
 ) <autorun> {
     while(1) {
         //if( start ) {
@@ -467,7 +498,7 @@ algorithm j1eforthplusALU(
     input   uint16  stackTop,
     input   uint16  stackNext,
 
-    output! uint16  newStackTop
+    output  uint16  newStackTop
 ) <autorun> {
     while(1) {
         //if( start ) {
@@ -502,10 +533,10 @@ algorithm j1eforthcallbranch(
     input   uint8   dsp,
     input   uint8   rsp,
 
-    output! uint16  newStackTop,
-    output! uint13  newPC,
-    output! uint8   newDSP,
-    output! uint8   newRSP,
+    output uint16  newStackTop,
+    output uint13  newPC,
+    output uint8   newDSP,
+    output uint8   newRSP,
 ) <autorun> {
     while(1) {
         // ONLY TRIGGER IF CALL BRANCH 0BRANCH
